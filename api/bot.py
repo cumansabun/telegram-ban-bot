@@ -14,23 +14,14 @@ from telegram.ext import (
 )
 
 # =========================
-# ENV VARIABLES
+# ENV
 # =========================
-TOKEN = os.environ.get("TOKEN")
-SHEET_URL = os.environ.get("SHEET_URL")
-CREDS_BASE64 = os.environ.get("GOOGLE_CREDENTIALS_BASE64")
-
-if not TOKEN:
-    raise Exception("TOKEN not set")
-
-if not SHEET_URL:
-    raise Exception("SHEET_URL not set")
-
-if not CREDS_BASE64:
-    raise Exception("GOOGLE_CREDENTIALS_BASE64 not set")
+TOKEN = os.environ["TOKEN"]
+SHEET_URL = os.environ["SHEET_URL"]
+CREDS_BASE64 = os.environ["GOOGLE_CREDENTIALS_BASE64"]
 
 # =========================
-# GOOGLE AUTH (BASE64 SAFE)
+# GOOGLE AUTH
 # =========================
 creds_json = base64.b64decode(CREDS_BASE64).decode("utf-8")
 creds_dict = json.loads(creds_json)
@@ -58,11 +49,7 @@ kategori_list = [
     "JENIS KENDARAAN",
 ]
 
-# =========================
-# START MENU
-# =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     keyboard = [
         ["NOMOR LAMBUNG", "CABANG"],
         ["GOLONGAN", "MERK//TYPE"],
@@ -77,17 +64,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup,
     )
 
-# =========================
-# HANDLE MESSAGE
-# =========================
 async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     text = update.message.text.strip()
     data = sheet.get_all_records()
 
-    # Pilih kategori
     if text in kategori_list:
-
         daftar = set()
 
         for row in data:
@@ -96,7 +77,6 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 daftar.add(value)
 
         context.user_data["kategori"] = text
-
         daftar_text = "\n".join(sorted(daftar))
 
         await update.message.reply_text(
@@ -105,7 +85,6 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Mode filter
     kategori = context.user_data.get("kategori")
 
     if kategori:
@@ -115,7 +94,6 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             value = str(row.get(kategori, "")).strip()
 
             if value.upper() == text.upper():
-
                 hasil += f"""
 🚚 DATA KENDARAAN
 
@@ -150,27 +128,33 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 
 # =========================
-# VERCEL HANDLER (SYNC SAFE)
+# ASGI APP UNTUK VERCEL
 # =========================
-def handler(request):
+async def app_asgi(scope, receive, send):
+    if scope["type"] == "http":
+        body = b""
+        more_body = True
 
-    try:
-        body = request.get_body()
-        update = Update.de_json(json.loads(body), app.bot)
+        while more_body:
+            message = await receive()
+            body += message.get("body", b"")
+            more_body = message.get("more_body", False)
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        update = Update.de_json(json.loads(body.decode()), app.bot)
 
-        loop.run_until_complete(app.initialize())
-        loop.run_until_complete(app.process_update(update))
+        await app.initialize()
+        await app.process_update(update)
 
-        return {
-            "statusCode": 200,
-            "body": "OK"
-        }
+        await send({
+            "type": "http.response.start",
+            "status": 200,
+            "headers": [(b"content-type", b"text/plain")],
+        })
 
-    except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": str(e)
-        }
+        await send({
+            "type": "http.response.body",
+            "body": b"OK",
+        })
+
+# IMPORTANT: ini yang dibaca Vercel
+app = app_asgi
