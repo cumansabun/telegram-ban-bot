@@ -1,7 +1,8 @@
 import os
 import json
+import base64
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -12,24 +13,33 @@ from telegram.ext import (
 )
 
 # =========================
-# ENV VARIABLES (Vercel)
+# ENV VARIABLES
 # =========================
-TOKEN = os.environ["TOKEN"]
-SHEET_URL = os.environ["SHEET_URL"]
-GOOGLE_CREDENTIALS = os.environ["GOOGLE_CREDENTIALS"]  # JSON string
+TOKEN = os.environ.get("TOKEN")
+SHEET_URL = os.environ.get("SHEET_URL")
+CREDS_BASE64 = os.environ.get("GOOGLE_CREDENTIALS_BASE64")
+
+if not TOKEN:
+    raise Exception("TOKEN not set")
+
+if not SHEET_URL:
+    raise Exception("SHEET_URL not set")
+
+if not CREDS_BASE64:
+    raise Exception("GOOGLE_CREDENTIALS_BASE64 not set")
 
 # =========================
-# GOOGLE AUTH (from ENV)
+# GOOGLE AUTH (BASE64 SAFE)
 # =========================
-creds_dict = json.loads(GOOGLE_CREDENTIALS)
+creds_json = base64.b64decode(CREDS_BASE64).decode("utf-8")
+creds_dict = json.loads(creds_json)
 
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive",
-]
+credentials = Credentials.from_service_account_info(
+    creds_dict,
+    scopes=["https://www.googleapis.com/auth/spreadsheets"]
+)
 
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client = gspread.authorize(creds)
+client = gspread.authorize(credentials)
 sheet = client.open_by_url(SHEET_URL).sheet1
 
 # =========================
@@ -139,11 +149,11 @@ Qty : {row.get('QTY','')}
 
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT, reply))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 
 
 # =========================
-# VERCEL HANDLER (Webhook)
+# VERCEL WEBHOOK HANDLER
 # =========================
 async def handler(request):
 
