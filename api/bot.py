@@ -1,6 +1,7 @@
 import os
 import json
 import base64
+import asyncio
 import gspread
 from google.oauth2.service_account import Credentials
 from telegram import Update, ReplyKeyboardMarkup
@@ -57,7 +58,6 @@ kategori_list = [
     "JENIS KENDARAAN",
 ]
 
-
 # =========================
 # START MENU
 # =========================
@@ -76,7 +76,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🚚 BOT DATA BAN KENDARAAN\n\nSilakan pilih kategori pencarian:",
         reply_markup=reply_markup,
     )
-
 
 # =========================
 # HANDLE MESSAGE
@@ -147,23 +146,31 @@ Qty : {row.get('QTY','')}
 
     await update.message.reply_text("Ketik /start untuk memulai")
 
-
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 
-
 # =========================
-# VERCEL WEBHOOK HANDLER
+# VERCEL HANDLER (SYNC SAFE)
 # =========================
-async def handler(request):
+def handler(request):
 
-    body = await request.body()
-    update = Update.de_json(json.loads(body), app.bot)
+    try:
+        body = request.get_body()
+        update = Update.de_json(json.loads(body), app.bot)
 
-    await app.initialize()
-    await app.process_update(update)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
-    return {
-        "statusCode": 200,
-        "body": "OK",
-    }
+        loop.run_until_complete(app.initialize())
+        loop.run_until_complete(app.process_update(update))
+
+        return {
+            "statusCode": 200,
+            "body": "OK"
+        }
+
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "body": str(e)
+        }
