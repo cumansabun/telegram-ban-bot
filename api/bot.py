@@ -17,7 +17,7 @@ from telegram.ext import (
 )
 
 # =========================
-# ENV VARIABLES
+# ENV
 # =========================
 TOKEN = os.environ.get("TOKEN")
 SHEET_URL = os.environ.get("SHEET_URL")
@@ -25,25 +25,23 @@ CREDS_BASE64 = os.environ.get("GOOGLE_CREDENTIALS_BASE64")
 
 application = None
 sheet = None
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
 # =========================
-# GOOGLE AUTH (BASE64)
+# GOOGLE AUTH
 # =========================
 if CREDS_BASE64 and SHEET_URL:
-    try:
-        creds_json = base64.b64decode(CREDS_BASE64).decode("utf-8")
-        creds_dict = json.loads(creds_json)
+    creds_json = base64.b64decode(CREDS_BASE64).decode("utf-8")
+    creds_dict = json.loads(creds_json)
 
-        credentials = Credentials.from_service_account_info(
-            creds_dict,
-            scopes=["https://www.googleapis.com/auth/spreadsheets"],
-        )
+    credentials = Credentials.from_service_account_info(
+        creds_dict,
+        scopes=["https://www.googleapis.com/auth/spreadsheets"],
+    )
 
-        client = gspread.authorize(credentials)
-        sheet = client.open_by_url(SHEET_URL).sheet1
-
-    except Exception as e:
-        print("Google Auth Error:", e)
+    client = gspread.authorize(credentials)
+    sheet = client.open_by_url(SHEET_URL).sheet1
 
 # =========================
 # TELEGRAM INIT
@@ -61,9 +59,6 @@ if TOKEN:
         "JENIS KENDARAAN",
     ]
 
-    # =========================
-    # START COMMAND
-    # =========================
     async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             ["NOMOR LAMBUNG", "CABANG"],
@@ -75,14 +70,10 @@ if TOKEN:
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
         await update.message.reply_text(
-            "🚚 BOT DATA BAN KENDARAAN\n\n"
-            "Silakan pilih kategori pencarian:",
+            "🚚 BOT DATA BAN KENDARAAN\n\nSilakan pilih kategori pencarian:",
             reply_markup=reply_markup,
         )
 
-    # =========================
-    # HANDLE MESSAGE
-    # =========================
     async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not sheet:
@@ -114,7 +105,7 @@ if TOKEN:
             return
 
         # =========================
-        # MODE FILTER
+        # TAMPILKAN DETAIL
         # =========================
         kategori = context.user_data.get("kategori")
 
@@ -128,23 +119,25 @@ if TOKEN:
                     hasil += f"""
 🚚 DATA KENDARAAN
 
-Nomor Lambung : {row.get('NOMOR LAMBUNG','')}
-Cabang : {row.get('CABANG','')}
-Golongan : {row.get('GOLONGAN','')}
+Nomor Lambung   : {row.get('NOMOR LAMBUNG','')}
+Cabang          : {row.get('CABANG','')}
+Golongan        : {row.get('GOLONGAN','')}
 
-Merk : {row.get('MERK//TYPE','')}
-Nopol : {row.get('NOPOL','')}
+Merk / Type     : {row.get('MERK//TYPE','')}
+No Polisi       : {row.get('NOPOL','')}
+Pemakai         : {row.get('PEMAKAI','')}
 
-Pemakai :
-{row.get('PEMAKAI','')}
+Kilometer       : {row.get('KILOMETER','')}
+Tanggal Ambil   : {row.get('TANGGAL AMBIL','')}
 
-Jenis Kendaraan :
-{row.get('JENIS KENDARAAN','')}
+Jenis Kendaraan : {row.get('JENIS KENDARAAN','')}
 
-Nomor Ban : {row.get('NOMOR BAN','')}
-Qty : {row.get('QTY','')}
+Nomor Ban       : {row.get('NOMOR BAN','')}
+Qty             : {row.get('QTY','')}
+Type Ban        : {row.get('TYPE BAN','')}
+Keterangan Ban  : {row.get('KETERANGAN BAN','')}
 
-----------------------------
+-----------------------------------
 """
 
             if not hasil:
@@ -158,9 +151,11 @@ Qty : {row.get('QTY','')}
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 
+    loop.run_until_complete(application.initialize())
+
 
 # =========================
-# VERCEL HANDLER (FIX 500 ERROR)
+# VERCEL HANDLER
 # =========================
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -182,10 +177,6 @@ class handler(BaseHTTPRequestHandler):
 
             update = Update.de_json(data, application.bot)
 
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-            loop.run_until_complete(application.initialize())
             loop.run_until_complete(application.process_update(update))
 
             self.send_response(200)
