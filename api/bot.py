@@ -35,7 +35,7 @@ client = gspread.authorize(credentials)
 sheet = client.open_by_url(SHEET_URL).sheet1
 
 # =========================
-# TELEGRAM APP
+# TELEGRAM
 # =========================
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -70,7 +70,6 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text in kategori_list:
         daftar = set()
-
         for row in data:
             value = str(row.get(text, "")).strip()
             if value:
@@ -92,7 +91,6 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         for row in data:
             value = str(row.get(kategori, "")).strip()
-
             if value.upper() == text.upper():
                 hasil += f"""
 🚚 DATA KENDARAAN
@@ -127,34 +125,29 @@ Qty : {row.get('QTY','')}
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 
+
 # =========================
-# ASGI APP UNTUK VERCEL
+# VERCEL HANDLER (WAJIB BEGINI)
 # =========================
-async def app_asgi(scope, receive, send):
-    if scope["type"] == "http":
-        body = b""
-        more_body = True
+def handler(request, context):
 
-        while more_body:
-            message = await receive()
-            body += message.get("body", b"")
-            more_body = message.get("more_body", False)
+    try:
+        body = request.get_body()
+        update = Update.de_json(json.loads(body), app.bot)
 
-        update = Update.de_json(json.loads(body.decode()), app.bot)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
-        await app.initialize()
-        await app.process_update(update)
+        loop.run_until_complete(app.initialize())
+        loop.run_until_complete(app.process_update(update))
 
-        await send({
-            "type": "http.response.start",
-            "status": 200,
-            "headers": [(b"content-type", b"text/plain")],
-        })
+        return {
+            "statusCode": 200,
+            "body": "OK"
+        }
 
-        await send({
-            "type": "http.response.body",
-            "body": b"OK",
-        })
-
-# IMPORTANT: ini yang dibaca Vercel
-app = app_asgi
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "body": str(e)
+        }
