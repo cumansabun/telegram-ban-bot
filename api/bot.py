@@ -59,6 +59,9 @@ if TOKEN:
         "JENIS KENDARAAN",
     ]
 
+    # =========================
+    # START COMMAND
+    # =========================
     async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
             ["NOMOR LAMBUNG", "CABANG"],
@@ -74,6 +77,9 @@ if TOKEN:
             reply_markup=reply_markup,
         )
 
+    # =========================
+    # REPLY HANDLER
+    # =========================
     async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not sheet:
@@ -105,17 +111,20 @@ if TOKEN:
             return
 
         # =========================
-        # TAMPILKAN DETAIL
+        # INPUT VALUE (QUERY DINAMIS)
         # =========================
         kategori = context.user_data.get("kategori")
 
         if kategori:
             hasil = ""
+            ditemukan = False
 
             for row in data:
                 value = str(row.get(kategori, "")).strip()
 
                 if value.upper() == text.upper():
+                    ditemukan = True
+
                     hasil += f"""
 🚚 DATA KENDARAAN
 
@@ -140,7 +149,7 @@ Keterangan Ban  : {row.get('KETERANGAN BAN','')}
 -----------------------------------
 """
 
-            if not hasil:
+            if not ditemukan:
                 hasil = "❌ Data tidak ditemukan"
 
             await update.message.reply_text(hasil)
