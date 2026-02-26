@@ -14,8 +14,8 @@ from telegram.ext import (
 # =========================
 # ENV VARIABLES (Vercel)
 # =========================
-TOKEN = os.environ["8761955984:AAGUmS5eupQyXsRoFJkmDQ-75hUSMxvoBPc"]
-SHEET_URL = os.environ["https://docs.google.com/spreadsheets/d/1g8WRnILDuN5vxlTpKlA_kxWSPFzTtdIkr-Sk5bG5ny8/edit?usp=drive_link"]
+TOKEN = os.environ["TOKEN"]
+SHEET_URL = os.environ["SHEET_URL"]
 GOOGLE_CREDENTIALS = os.environ["GOOGLE_CREDENTIALS"]  # JSON string
 
 # =========================
