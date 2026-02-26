@@ -106,8 +106,8 @@ if TOKEN:
             await update.message.reply_text(
                 f"📋 DAFTAR {text}\n\n{daftar_text}\n\n"
                 f"Ketik salah satu untuk melihat detail\n\n"
-                f"Ketik /start untuk kembali"
-                f" "
+                f"Ketik /start untuk kembali\n\n\n\n"
+                
                 f"Development by : Ahmad Syarifuddin H."
             )
             return
