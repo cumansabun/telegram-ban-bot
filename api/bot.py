@@ -1,30 +1,159 @@
-import json
 import os
+import json
+import base64
 import asyncio
 from http.server import BaseHTTPRequestHandler
 
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import gspread
+from google.oauth2.service_account import Credentials
 
-# Ambil token dari Environment Variable
-TOKEN = os.environ.get("BOT_TOKEN")
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
+
+# =========================
+# ENV
+# =========================
+TOKEN = os.environ.get("TOKEN")
+SHEET_URL = os.environ.get("SHEET_URL")
+CREDS_BASE64 = os.environ.get("GOOGLE_CREDENTIALS_BASE64")
 
 application = None
+sheet = None
 
-# Hanya build bot kalau TOKEN tersedia
+# =========================
+# GOOGLE AUTH (BASE64)
+# =========================
+if CREDS_BASE64 and SHEET_URL:
+    try:
+        creds_json = base64.b64decode(CREDS_BASE64).decode("utf-8")
+        creds_dict = json.loads(creds_json)
+
+        credentials = Credentials.from_service_account_info(
+            creds_dict,
+            scopes=["https://www.googleapis.com/auth/spreadsheets"],
+        )
+
+        client = gspread.authorize(credentials)
+        sheet = client.open_by_url(SHEET_URL).sheet1
+
+    except Exception as e:
+        print("Google Auth Error:", e)
+
+# =========================
+# TELEGRAM INIT
+# =========================
 if TOKEN:
     application = ApplicationBuilder().token(TOKEN).build()
 
-    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text("Bot aktif 🔥")
+    kategori_list = [
+        "NOMOR LAMBUNG",
+        "CABANG",
+        "GOLONGAN",
+        "MERK//TYPE",
+        "NOPOL",
+        "PEMAKAI",
+        "JENIS KENDARAAN",
+    ]
 
-    async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text("Gunakan /start untuk memulai.")
+    # =========================
+    # START
+    # =========================
+    async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        keyboard = [
+            ["NOMOR LAMBUNG", "CABANG"],
+            ["GOLONGAN", "MERK//TYPE"],
+            ["NOPOL", "PEMAKAI"],
+            ["JENIS KENDARAAN"],
+        ]
+
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+        await update.message.reply_text(
+            "🚚 BOT DATA BAN KENDARAAN\n\n"
+            "Silakan pilih kategori pencarian:",
+            reply_markup=reply_markup,
+        )
+
+    # =========================
+    # HANDLE MESSAGE
+    # =========================
+    async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not sheet:
+            await update.message.reply_text("Google Sheet belum terkonfigurasi.")
+            return
+
+        text = update.message.text.strip()
+        data = sheet.get_all_records()
+
+        if text in kategori_list:
+            daftar = set()
+
+            for row in data:
+                value = str(row.get(text, "")).strip()
+                if value:
+                    daftar.add(value)
+
+            context.user_data["kategori"] = text
+            daftar_text = "\n".join(sorted(daftar))
+
+            await update.message.reply_text(
+                f"📋 DAFTAR {text}\n\n{daftar_text}\n\n"
+                f"Ketik salah satu untuk melihat detail\n\n"
+                f"Ketik /start untuk kembali"
+            )
+            return
+
+        kategori = context.user_data.get("kategori")
+
+        if kategori:
+            hasil = ""
+
+            for row in data:
+                value = str(row.get(kategori, "")).strip()
+
+                if value.upper() == text.upper():
+                    hasil += f"""
+🚚 DATA KENDARAAN
+
+Nomor Lambung : {row.get('NOMOR LAMBUNG','')}
+Cabang : {row.get('CABANG','')}
+Golongan : {row.get('GOLONGAN','')}
+
+Merk : {row.get('MERK//TYPE','')}
+Nopol : {row.get('NOPOL','')}
+
+Pemakai :
+{row.get('PEMAKAI','')}
+
+Jenis Kendaraan :
+{row.get('JENIS KENDARAAN','')}
+
+Nomor Ban : {row.get('NOMOR BAN','')}
+Qty : {row.get('QTY','')}
+
+----------------------------
+"""
+
+            if not hasil:
+                hasil = "❌ Data tidak ditemukan"
+
+            await update.message.reply_text(hasil)
+            return
+
+        await update.message.reply_text("Ketik /start untuk memulai")
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 
-
+# =========================
+# VERCEL HANDLER (LEGACY RUNTIME)
+# =========================
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -36,7 +165,7 @@ class handler(BaseHTTPRequestHandler):
             if not application:
                 self.send_response(500)
                 self.end_headers()
-                self.wfile.write(b"BOT_TOKEN not configured")
+                self.wfile.write(b"TOKEN not configured")
                 return
 
             content_length = int(self.headers.get("Content-Length", 0))
