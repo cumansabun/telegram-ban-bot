@@ -17,7 +17,7 @@ from telegram.ext import (
 )
 
 # =========================
-# ENV
+# ENV VARIABLES
 # =========================
 TOKEN = os.environ.get("TOKEN")
 SHEET_URL = os.environ.get("SHEET_URL")
@@ -62,7 +62,7 @@ if TOKEN:
     ]
 
     # =========================
-    # START
+    # START COMMAND
     # =========================
     async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [
@@ -84,6 +84,7 @@ if TOKEN:
     # HANDLE MESSAGE
     # =========================
     async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
         if not sheet:
             await update.message.reply_text("Google Sheet belum terkonfigurasi.")
             return
@@ -91,6 +92,9 @@ if TOKEN:
         text = update.message.text.strip()
         data = sheet.get_all_records()
 
+        # =========================
+        # PILIH KATEGORI
+        # =========================
         if text in kategori_list:
             daftar = set()
 
@@ -109,6 +113,9 @@ if TOKEN:
             )
             return
 
+        # =========================
+        # MODE FILTER
+        # =========================
         kategori = context.user_data.get("kategori")
 
         if kategori:
@@ -151,8 +158,9 @@ Qty : {row.get('QTY','')}
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 
+
 # =========================
-# VERCEL HANDLER (LEGACY RUNTIME)
+# VERCEL HANDLER (FIX 500 ERROR)
 # =========================
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -174,13 +182,18 @@ class handler(BaseHTTPRequestHandler):
 
             update = Update.de_json(data, application.bot)
 
-            asyncio.run(application.process_update(update))
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            loop.run_until_complete(application.initialize())
+            loop.run_until_complete(application.process_update(update))
 
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"OK")
 
         except Exception as e:
+            print("WEBHOOK ERROR:", e)
             self.send_response(500)
             self.end_headers()
             self.wfile.write(str(e).encode())
