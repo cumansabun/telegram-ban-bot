@@ -73,7 +73,7 @@ if TOKEN:
         reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
         await update.message.reply_text(
-            "🚚 BOT DATA BAN KENDARAAN\n\nSilakan pilih kategori pencarian: \n\n\nDevelopment by : Ahmad Syarifuddin H.",
+            "🚚 BOT DATA BAN KENDARAAN\n\nSilakan pilih kategori pencarian: \n\n\nDevelopment by : Akhmad Syarifuddin H.",
             reply_markup=reply_markup,
         )
 
@@ -108,7 +108,7 @@ if TOKEN:
                 f"Ketik salah satu untuk melihat detail\n\n"
                 f"Ketik /start untuk kembali\n\n\n\n"
                 
-                f"Development by : Ahmad Syarifuddin H."
+                f"Development by : Akhmad Syarifuddin H."
             )
             return
 
